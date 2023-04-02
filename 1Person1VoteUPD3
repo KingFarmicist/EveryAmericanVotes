@@ -1,0 +1,97 @@
+from flask import Flask, request, jsonify
+from cryptography.fernet import Fernet
+import hashlib
+import random
+import time
+
+app = Flask(__name__)
+
+# Generate a 256-bit AES key
+key = Fernet.generate_key()
+
+# Create an AES cipher with the key
+cipher = Fernet(key)
+
+# Create an empty dictionary to store the votes
+votes = {}
+
+# Create an empty dictionary to store the one-time codes
+codes = {}
+
+# Create an empty dictionary to store the voter IDs
+voter_ids = {}
+
+# Check the password against the hashed password in the database
+def check_password(password):
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()
+    # In a real system, this would check against a database of users and hashed passwords
+    if hashed_password == "a5f5d5f7c5a5b5d5f5a5e5c5":
+        return True
+    else:
+        return False
+
+# Verify the one-time code
+def verify_one_time_code(phone, code):
+    # In a real system, this would check against the code sent to the voter's phone or email
+    if phone in codes and codes[phone] == code:
+        del codes[phone]
+        return True
+    else:
+        return False
+
+# Generate a random nonce
+def generate_nonce():
+    return random.randint(0, 1000000000)
+
+# Create a hash of the vote, the nonce, and the timestamp
+def create_hash(vote, nonce):
+    vote_bytes = vote.encode()
+    nonce_bytes = nonce.to_bytes(4, byteorder="big")
+    timestamp_bytes = int(time.time()).to_bytes(8, byteorder="big")
+    hash_input = vote_bytes + nonce_bytes + timestamp_bytes
+    return hashlib.sha256(hash_input).hexdigest()
+
+# Encrypt a vote using the AES cipher
+def encrypt_vote(vote):
+    encrypted_vote = cipher.encrypt(vote.encode())
+    return encrypted_vote
+
+# Decrypt the encrypted vote using the same AES cipher
+def decrypt_vote(encrypted_vote):
+    decrypted_vote = cipher.decrypt(encrypted_vote).decode()
+    return decrypted_vote
+
+# Record a vote for a given option
+def record_vote(option, voter_id):
+    votes[voter_id] = option
+
+# Get the current vote count for each option
+def get_vote_counts():
+    vote_counts = {"Option A": 0, "Option B": 0, "Option C": 0}
+    for voter_id, vote in votes.items():
+        vote_counts[vote] += 1
+    return vote_counts
+
+# Handle the voting page
+@app.route("/")
+def voting_page():
+    return '''
+        <form action="/vote" method="post">
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password"><br><br>
+            <label for="phone">Phone Number:</label>
+            <input type="text" id="phone" name="phone"><br><br>
+            <label for="code">One-time Code:</label>
+            <input type="text" id="code" name="code"><br><br>
+            <label for="option">Select an option:</label>
+            <select id="option" name="option">
+                <option value="Option A">Option A</option>
+                <option value="Option B">Option B</option>
+                <option value="Option C">Option C</option>
+            </select><br><br>
+            <input type="submit" value="Submit">
+        </form>
+    '''
+
+# Handle the vote submission
+@app.route("/vote
